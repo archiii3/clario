@@ -1,0 +1,136 @@
+
+#!/usr/bin/env python3
+"""
+Clario — A clean and safe file organizer.
+
+Organize files by type with preview mode and collision protection.
+
+Usage:
+    python clario.py /path/to/folder
+    python clario.py /path/to/folder --apply
+"""
+
+import argparse
+import shutil
+from pathlib import Path
+
+VERSION = "1.0.0"
+
+FILE_TYPES = {
+    "Images": {
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".ico"
+    },
+    "Documents": {
+        ".pdf", ".doc", ".docx", ".txt", ".rtf", ".odt", ".md"
+    },
+    "Videos": {
+        ".mp4", ".mkv", ".mov", ".avi", ".webm"
+    },
+    "Audio": {
+        ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"
+    },
+    "Archives": {
+        ".zip", ".rar", ".7z", ".tar", ".gz"
+    },
+    "Code": {
+        ".py", ".js", ".ts", ".html", ".css", ".java",
+        ".cpp", ".c", ".go", ".rs", ".json", ".yaml", ".yml"
+    },
+}
+
+
+def get_category(file_path: Path) -> str:
+    """Return the category matching a file extension."""
+    extension = file_path.suffix.lower()
+
+    for category, extensions in FILE_TYPES.items():
+        if extension in extensions:
+            return category
+
+    return "Others"
+
+
+def unique_destination(destination: Path) -> Path:
+    """Prevent overwriting existing files."""
+    if not destination.exists():
+        return destination
+
+    counter = 1
+
+    while True:
+        candidate = destination.with_name(
+            f"{destination.stem}_{counter}{destination.suffix}"
+        )
+
+        if not candidate.exists():
+            return candidate
+
+        counter += 1
+
+
+def organize_folder(folder: Path, apply_changes: bool) -> None:
+    """Preview or organize files in the selected folder."""
+    if not folder.exists() or not folder.is_dir():
+        raise ValueError(f"Invalid directory: {folder}")
+
+    files = [
+        item for item in folder.iterdir()
+        if item.is_file() and item.name != Path(__file__).name
+    ]
+
+    if not files:
+        print("No files found to organize.")
+        return
+
+    moved = 0
+
+    print(f"\nClario v{VERSION}")
+    print(f"Directory: {folder.resolve()}")
+    print(f"Mode: {'APPLY CHANGES' if apply_changes else 'PREVIEW'}\n")
+
+    for file_path in sorted(files, key=lambda item: item.name.lower()):
+        category = get_category(file_path)
+        target_dir = folder / category
+        destination = unique_destination(target_dir / file_path.name)
+
+        print(f"{file_path.name}  ->  {category}/{destination.name}")
+
+        if apply_changes:
+            target_dir.mkdir(exist_ok=True)
+            shutil.move(str(file_path), str(destination))
+            moved += 1
+
+    if apply_changes:
+        print(f"\nDone! Organized {moved} file(s).")
+    else:
+        print(f"\nPreview complete: {len(files)} file(s) found.")
+        print("Run again with --apply to organize your files.")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="A minimal, safe file organization tool."
+    )
+
+    parser.add_argument(
+        "folder",
+        type=Path,
+        help="Path to the folder you want to organize."
+    )
+
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually move files instead of previewing changes."
+    )
+
+    args = parser.parse_args()
+
+    try:
+        organize_folder(args.folder, args.apply)
+    except (OSError, ValueError) as error:
+        parser.exit(1, f"Error: {error}\n")
+
+
+if __name__ == "__main__":
+    main()
